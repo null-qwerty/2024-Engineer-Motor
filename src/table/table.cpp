@@ -1,11 +1,13 @@
 #include "table/table.hpp"
-
 #include <opencv2/highgui/highgui.hpp>
-Table::Table()
+
+Table::Table(float length, float height, float unitX, float unitY)
+    : length(length)
+    , height(height)
+    , unitX(unitX)
+    , unitY(unitY)
 {
-    table = cv::Mat(cv::Size(1000, 1000), CV_8UC3, cv::Scalar(0, 0, 0));
-    unitX = 1000. / 100;
-    unitY = 1000. / 100;
+    table = cv::Mat(cv::Size(length, height), CV_8UC3, cv::Scalar(0, 0, 0));
     cv::namedWindow("table", cv::WINDOW_NORMAL);
 }
 
@@ -15,17 +17,17 @@ Table::~Table()
 
 void Table::DrawLine(std::deque<float> &Points, cv::Scalar color)
 {
-    if (Points.size() > 100) {
+    if (Points.size() > length / unitX) {
         Points.erase(Points.begin(), Points.begin() + Points.size() - 100);
     }
     for (int i = 0; i < Points.size(); i++) {
-        cv::circle(table, cv::Point(i * unitX, 1000 / 2 - Points[i] * unitY), 1,
+        cv::circle(table, cv::Point(i * unitX, height / 2 - Points[i] * unitY), 1,
                    color, 2);
         if (i) {
             cv::line(
                 table,
-                cv::Point((i - 1) * unitX, 1000 / 2 - Points[i - 1] * unitY),
-                cv::Point(i * unitX, 1000 / 2 - Points[i] * unitY), color, 2);
+                cv::Point((i - 1) * unitX, height / 2 - Points[i - 1] * unitY),
+                cv::Point(i * unitX, height / 2 - Points[i] * unitY), color, 2);
         }
     }
 }
@@ -33,10 +35,10 @@ void Table::DrawLine(std::deque<float> &Points, cv::Scalar color)
 void Table::DrawHorizontalLine()
 {
     for (int i = 0; i < 100; i++) {
-        cv::circle(table, cv::Point(i * unitX, 1000 / 2), 1,
+        cv::circle(table, cv::Point(i * unitX, height / 2), 1,
                    cv::Scalar(255, 255, 255), 1);
     }
-    cv::line(table, cv::Point(0, 1000 / 2), cv::Point(1000, 1000 / 2),
+    cv::line(table, cv::Point(0, height / 2), cv::Point(length, height / 2),
              cv::Scalar(255, 255, 255), 2);
 }
 
@@ -67,7 +69,8 @@ void Table::addLine(const std::string name, const Line line)
 {
     lines.insert(std::pair<std::string, Line>(name, line));
     auto l = lines.find(name);
-    cv::createTrackbar(l->first, "table", NULL, 1, TrackbarCallback, &(l->second.show));
+    cv::createTrackbar(l->first, "table", NULL, 1, TrackbarCallback,
+                       &(l->second.show));
 }
 
 void Table::addLine(const std::string name,
@@ -77,7 +80,7 @@ void Table::addLine(const std::string name,
     addLine(name, Line(line, color));
 }
 
-void TrackbarCallback(int pos, void* userdata)
+void TrackbarCallback(int pos, void *userdata)
 {
     *(int *)userdata = pos;
     return;

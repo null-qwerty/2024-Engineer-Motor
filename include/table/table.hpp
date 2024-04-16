@@ -7,7 +7,7 @@
 struct Line {
     std::shared_ptr<std::deque<float>> pdata;
     cv::Scalar color;
-    int show = 1;
+    int show = 0;
 
     Line(const std::shared_ptr<std::deque<float>> pdata, const cv::Scalar color)
         : pdata(pdata)
@@ -19,7 +19,8 @@ struct Line {
 
 class Table {
 public:
-    Table();
+    Table(float length = 1000., float height = 1000., float unitX = 10.,
+          float unitY = 10.);
     ~Table();
     void DrawLine(std::deque<float> &Points,
                   cv::Scalar color = cv::Scalar(0, 0, 255));
@@ -34,6 +35,8 @@ public:
 
 private:
     cv::Mat table;
+    float length;
+    float height;
     float unitX;
     float unitY;
     std::map<std::string, Line> lines;
