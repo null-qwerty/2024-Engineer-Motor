@@ -1,0 +1,14 @@
+{
+    "pidPram":
+    {
+        "kp": 15.0,
+        "ki": 0.01,
+        "kd": 7.0
+    },
+    "signal": 
+    {
+        "type": "remote",
+        "amplitude": 3.0,
+        "offset": 0.0
+    }
+}
