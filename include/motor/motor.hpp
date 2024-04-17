@@ -72,8 +72,21 @@ public:
     {
         return dataList[id];
     }
+    /**
+     * @brief 获取特定 id 的电机控制数据，除以减速比
+     * 
+     * @param id 电机 id
+     * @return MotorData 电机反馈数据，q 和 dq 除以减速比 
+     */
+    MotorData getDataDivGearRatio(const int& id)
+    {
+        MotorData temp = dataList[id];
+        temp.q /= queryGearRatio(motorList[id]);
+        temp.dq /= queryGearRatio(motorList[id]);
+        return temp;
+    }
     
-    std::map<int,MotorCmd >cmdList; ///< 电机命令
+    std::map<int,MotorCmd> cmdList; ///< 电机命令
     std::map<int,MotorData> dataList; ///< 电机数据
 
 private:
