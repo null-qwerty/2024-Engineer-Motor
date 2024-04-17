@@ -20,7 +20,6 @@ include_directories(
 add_executable(HelloWorld
     src/main.cpp
     src/pid/pid.cpp
-    src/table/table.cpp
     src/motor/motor.cpp
 )
 
