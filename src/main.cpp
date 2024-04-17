@@ -77,20 +77,19 @@ int main()
                 SpeedLoop[0].target + (int)recv[1] * 0.005);
             SpeedLoop[2].target = SpeedLoop[2].target_limit(
                 SpeedLoop[2].target + (int)recv[2] * 0.005);
+            SpeedLoop[0].target = motor.getData(0).tau > 20 ?
+                                      motor.getDataDivGearRatio(0).q :
+                                      SpeedLoop[0].target;
+            SpeedLoop[2].target = motor.getData(2).tau > 20 ?
+                                      motor.getDataDivGearRatio(2).q :
+                                      SpeedLoop[2].target;
         } else if (signalType == "none") {
-            SpeedLoop[0].target =
-                motor.dataList[0].q / queryGearRatio(MotorType::A1);
-            SpeedLoop[2].target =
-                motor.dataList[2].q / queryGearRatio(MotorType::A1);
+            SpeedLoop[0].target = motor.getDataDivGearRatio(0).q;
+            SpeedLoop[2].target = motor.getDataDivGearRatio(2).q;
         }
 
-        SpeedLoop[0].observed =
-            motor.getData(0).q / queryGearRatio(MotorType::A1);
-
-        SpeedLoop[2].observed =
-            motor.getData(2).q / queryGearRatio(MotorType::A1);
-
-        // SpeedLoop[0].target = motor.getData(0).tau > 
+        SpeedLoop[0].observed = motor.getDataDivGearRatio(0).q;
+        SpeedLoop[2].observed = motor.getDataDivGearRatio(2).q;
 
         SpeedLoop[0].error = SpeedLoop[0].target - SpeedLoop[0].observed;
         SpeedLoop[2].error = SpeedLoop[2].target - SpeedLoop[2].observed;
