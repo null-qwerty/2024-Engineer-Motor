@@ -26,7 +26,7 @@ add_executable(HelloWorld
 
 add_executable(remote src/remote.cpp)
 
-add_executable(gruph src/gruph.cpp src/table/table.cpp)
+add_executable(graph src/graph.cpp)
 
 target_link_libraries(HelloWorld
     ${OpenCV_LIBS}
@@ -37,4 +37,4 @@ target_link_libraries(HelloWorld
 
 target_link_libraries(remote  ${Boost_LIBRARIES} -lPHOENIX -lpthread)
 
-target_link_libraries(gruph ${OpenCV_LIBS} ${Boost_LIBRARIES} -lpthread)
+target_link_libraries(graph ${OpenCV_LIBS} ${Boost_LIBRARIES} -lpthread -lPHOENIX)

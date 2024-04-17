@@ -1,8 +1,7 @@
 #include <boost/interprocess/ipc/message_queue.hpp>
-
-#include "table/table.hpp"
 #include <thread>
 #include <boost/exception/exception.hpp>
+#include <PHOENIX/cvlib/graphTable.hpp>
 
 using namespace boost::interprocess;
 
@@ -20,7 +19,7 @@ int main()
     Points observedPoints_1 = std::make_shared<std::deque<float>>();
     Points targetPoints_1 = std::make_shared<std::deque<float>>();
 
-    Table table;
+    PHOENIX::cvlib::graphTable table;
 
     table.addLine("target", targetPoints, cv::Scalar(0, 255, 0));
     table.addLine("observe", observedPoints, cv::Scalar(0, 0, 255));
