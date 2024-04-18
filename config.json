@@ -7,8 +7,14 @@
     },
     "signal": 
     {
-        "type": "remote",
+        "type": "none",
         "amplitude": 3.0,
         "offset": 0.0
-    }
+    },
+    "motor_list":
+    [
+        {"id": 0, "type": "A1", "max_q": 1.18, "min_q": -2.45},
+        {"id": 2, "type": "A1", "max_q": 4.40, "min_q": 0.20}
+
+    ]
 }
