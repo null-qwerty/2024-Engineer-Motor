@@ -1,123 +1,141 @@
 // STD
 #include <iostream>
+#include <fstream>
 #include <vector>
 #include <queue>
-#include <boost/property_tree/json_parser.hpp>
-#include <boost/interprocess/ipc/message_queue.hpp>
 #include <unistd.h>
+// boost
+#include <boost/interprocess/ipc/message_queue.hpp>
+#include <boost/json.hpp>
+#include <boost/json/src.hpp>
+#include <boost/filesystem.hpp>
 // User
 #include "pid/pid.hpp"
 #include "motor/motor.hpp"
 
 using namespace boost::interprocess;
 
+#pragma pack(1)
+typedef struct {
+    int id;
+    float data;
+} graph_msg;
+#pragma pack()
+
 int main()
 {
     // 读取配置文件
-    boost::property_tree::ptree pt, pidPram, signal;
-    boost::property_tree::read_json("../config.json", pt);
     double kp, ki, kd, amplitude, signslOffset;
     std::string signalType;
 
-    pidPram = pt.get_child("pidPram");
-    signal = pt.get_child("signal");
-    kp = pidPram.get<double>("kp");
-    ki = pidPram.get<double>("ki");
-    kd = pidPram.get<double>("kd");
-    signalType = signal.get<std::string>("type");
-    amplitude = signal.get<double>("amplitude");
-    signslOffset = signal.get<double>("offset");
+    boost::filesystem::path p("../config.json");
+    std::ifstream ifs(p);
+    std::string jsonstr((std::istreambuf_iterator<char>(ifs)),
+                        std::istreambuf_iterator<char>());
+    boost::json::value jv = boost::json::parse(jsonstr);
+    boost::json::object jo = jv.as_object();
 
-    message_queue observemq(open_or_create, "observe0", 2, sizeof(float));
-    message_queue targetmq(open_or_create, "target0", 2, sizeof(float));
-    message_queue observemq_1(open_or_create, "observe1", 2, sizeof(float));
-    message_queue targetmq_1(open_or_create, "target1", 2, sizeof(float));
-
-    message_queue remotemq(open_or_create, "remote", 2, 3);
+    kp = jo["pidPram"].as_object().at("kp").as_double();
+    ki = jo["pidPram"].as_object().at("ki").as_double();
+    kd = jo["pidPram"].as_object().at("kd").as_double();
+    signalType = jo["signal"].as_object().at("type").as_string();
+    amplitude = jo["signal"].as_object().at("amplitude").as_double();
+    signslOffset = jo["signal"].as_object().at("offset").as_double();
 
     std::map<int, pidController> SpeedLoop;
-    SpeedLoop.insert(std::pair<int, pidController>(
-        0, PID(kp, ki, kd, 20 * queryGearRatio(MotorType::A1),
-               -20 * queryGearRatio(MotorType::A1))));
-    SpeedLoop.insert(std::pair<int, pidController>(
-        2, PID(kp, ki, kd, 20 * queryGearRatio(MotorType::A1),
-               -20 * queryGearRatio(MotorType::A1))));
-    // SpeedLoop.setFilter(50., 1 / 1000.0);
-    // 初始化电机
     UniTreeMotor motor("/dev/ttyUSB1");
-    motor.addMotor(0, MotorType::A1);
-    motor.addMotor(2, MotorType::A1);
 
-    SpeedLoop[0].target = motor.dataList[0].q / queryGearRatio(MotorType::A1);
-    SpeedLoop[2].target = motor.dataList[2].q / queryGearRatio(MotorType::A1);
-    SpeedLoop[0].setLimit(1.18, -2.45);
-    SpeedLoop[2].setLimit(4.4, 0.2);
-    SpeedLoop[0].init_pos = SpeedLoop[0].target;
-    SpeedLoop[2].init_pos = SpeedLoop[2].target;
+    boost::json::array motorList = jo["motor_list"].as_array();
+    for (auto &v : motorList) {
+        std::string type;
+        int id;
+        MotorType motorType;
+        double max_q, min_q;
+
+        id = v.as_object().at("id").as_int64();
+        type = v.as_object().at("type").as_string();
+        if (type == "A1")
+            motorType = MotorType::A1;
+        else if (type == "B1")
+            motorType = MotorType::B1;
+        else if (type == "GO_M8010_6")
+            motorType = MotorType::GO_M8010_6;
+        else {
+            std::cerr << "Motor type error! type:" << type << std::endl;
+            exit(-1);
+        }
+        max_q = v.as_object().at("max_q").as_double();
+        min_q = v.as_object().at("min_q").as_double();
+
+        SpeedLoop.insert(std::pair<int, pidController>(
+            id, PID(kp, ki, kd, 20 * queryGearRatio(motorType),
+                    -20 * queryGearRatio(motorType))));
+        SpeedLoop[id].setLimit(max_q, min_q);
+        motor.addMotor(id, motorType);
+
+        SpeedLoop[id].target = motor.dataList[id].q / queryGearRatio(motorType);
+        SpeedLoop[id].init_pos = SpeedLoop[id].target;
+    }
+
+    message_queue observemq(open_or_create, "observe", 5, sizeof(graph_msg));
+    message_queue targetmq(open_or_create, "target", 5, sizeof(graph_msg));
+
+    message_queue remotemq(open_or_create, "remote", 2, 3);
 
     double x = 0.;
 
     while (true) {
         if (signalType == "sin") {
-            SpeedLoop[0].target = signslOffset + amplitude * sin(x);
-            SpeedLoop[2].target = signslOffset + amplitude * sin(x + M_PI / 2);
+            for (auto &v : SpeedLoop) {
+                v.second.target =
+                    signslOffset + amplitude * sin(x + M_PI / 2 * v.first);
+            }
             x += 0.01;
             if (x >= 2 * M_PI)
                 x = x - 2 * M_PI;
         } else if (signalType == "step") {
-            SpeedLoop[0].target = signslOffset + amplitude;
-            SpeedLoop[2].target = signslOffset + amplitude + 1;
+            for (auto &v : SpeedLoop) {
+                v.second.target = signslOffset + amplitude + v.first;
+            }
         } else if (signalType == "remote") {
             int8_t recv[3] = { 0, 0, 0 };
             boost::interprocess::message_queue::size_type recvSize;
             unsigned int priority;
 
             remotemq.try_receive(recv, sizeof(recv), recvSize, priority);
-            SpeedLoop[0].target = SpeedLoop[0].target_limit(
-                SpeedLoop[0].target + (int)recv[1] * 0.005);
-            SpeedLoop[2].target = SpeedLoop[2].target_limit(
-                SpeedLoop[2].target + (int)recv[2] * 0.005);
-            SpeedLoop[0].target = motor.getData(0).tau > 20 ?
-                                      motor.getDataDivGearRatio(0).q :
-                                      SpeedLoop[0].target;
-            SpeedLoop[2].target = motor.getData(2).tau > 20 ?
-                                      motor.getDataDivGearRatio(2).q :
-                                      SpeedLoop[2].target;
+            for (auto &v : SpeedLoop) {
+                v.second.target = v.second.target_limit(
+                    v.second.target + (int)recv[v.first] * 0.005);
+                v.second.target = motor.getData(v.first).tau > 20 ?
+                                      motor.getDataDivGearRatio(v.first).q :
+                                      v.second.target;
+            }
         } else if (signalType == "none") {
-            SpeedLoop[0].target = motor.getDataDivGearRatio(0).q;
-            SpeedLoop[2].target = motor.getDataDivGearRatio(2).q;
+            for (auto &v : SpeedLoop) {
+                v.second.target = motor.getDataDivGearRatio(v.first).q;
+            }
         }
 
-        SpeedLoop[0].observed = motor.getDataDivGearRatio(0).q;
-        SpeedLoop[2].observed = motor.getDataDivGearRatio(2).q;
+        for (auto &v : SpeedLoop) {
+            graph_msg msg;
+            msg.id = v.first;
+            msg.data = v.second.target;
+            targetmq.try_send(&msg, sizeof(graph_msg), 0);
+            msg.data = motor.getDataDivGearRatio(v.first).q;
+            observemq.try_send(&msg, sizeof(graph_msg), 0);
+        }
 
-        SpeedLoop[0].error = SpeedLoop[0].target - SpeedLoop[0].observed;
-        SpeedLoop[2].error = SpeedLoop[2].target - SpeedLoop[2].observed;
-
-        observemq.try_send(&(SpeedLoop[0].observed), sizeof(float), 0);
-        targetmq.try_send(&(SpeedLoop[0].target), sizeof(float), 0);
-        observemq_1.try_send(&(SpeedLoop[2].observed), sizeof(float), 0);
-        targetmq_1.try_send(&(SpeedLoop[2].target), sizeof(float), 0);
-
-        motor.getCmd(0).id = 0;
-        motor.getCmd(0).q = SpeedLoop[0].target * queryGearRatio(MotorType::A1);
-        motor.getCmd(0).kp = 0.05;
-        motor.getCmd(0).kd = 1.2;
-        motor.getCmd(0).dq = SpeedLoop[0].Update(
-            SpeedLoop[0].target * queryGearRatio(MotorType::A1),
-            motor.getData(0).q);
-        motor.getCmd(2).id = 2;
-        motor.getCmd(2).q = SpeedLoop[2].target * queryGearRatio(MotorType::A1);
-        motor.getCmd(2).kp = 0.05;
-        motor.getCmd(2).kd = 1.2;
-        motor.getCmd(2).dq = SpeedLoop[2].Update(
-            SpeedLoop[2].target * queryGearRatio(MotorType::A1),
-            motor.getData(2).q);
-
-        // motor.getData(0).q += motor.getCmd(0).dq * 0.01;
-        // motor.getData(2).q += motor.getCmd(2).dq * 0.01;
-        motor.sendRecv(0);
-        motor.sendRecv(2);
+        for(auto &v : SpeedLoop){
+            motor.getCmd(v.first).id = v.first;
+            motor.getCmd(v.first).q = v.second.target * queryGearRatio(motor.motorList[v.first]);
+            motor.getCmd(v.first).kp = 0.05;
+            motor.getCmd(v.first).kd = 1.2;
+            motor.getCmd(v.first).dq = v.second.Update(
+                v.second.target * queryGearRatio(motor.motorList[v.first]),
+                motor.getData(v.first).q);
+            motor.getData(v.first).q += motor.getCmd(v.first).dq * 0.01;
+            motor.sendRecv(v.first);
+        }
 
         usleep(1000);
     }
