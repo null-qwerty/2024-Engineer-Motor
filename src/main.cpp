@@ -43,7 +43,7 @@ int main()
     signslOffset = jo["signal"].as_object().at("offset").as_double();
 
     std::map<int, pidController> SpeedLoop;
-    UniTreeMotor motor("/dev/ttyUSB1");
+    UniTreeMotor motor("/dev/unitree");
 
     boost::json::array motorList = jo["motor_list"].as_array();
     for (auto &v : motorList) {

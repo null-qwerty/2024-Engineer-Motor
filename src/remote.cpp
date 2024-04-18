@@ -3,7 +3,7 @@
 
 int main()
 {
-    PHOENIX::Serial remote("/dev/ttyUSB0", 115200);
+    PHOENIX::Serial remote("/dev/stm32_serial", 115200);
     uint8_t recv[3];
     boost::interprocess::message_queue mq(boost::interprocess::open_or_create,
                                           "remote", 2, 3);
