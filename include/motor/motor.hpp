@@ -88,9 +88,8 @@ public:
     
     std::map<int,MotorCmd> cmdList; ///< 电机命令
     std::map<int,MotorData> dataList; ///< 电机数据
+    std::map<int, MotorType> motorList; ///< 电机列表
 
 private:
     SerialPort serial; ///< 串口
-    std::map<int, MotorType> motorList; ///< 电机列表
-
 };
