@@ -20,6 +20,8 @@ int main()
         remote.receive(recv, sizeof(recv));
         std::cout << std::hex << (int)recv[0] << " " << (int)recv[1] << " "
                   << (int)recv[2] << std::endl;
+        recv[0] = recv[1];
+        recv[1] = 0x00;
         mq.try_send(recv, sizeof(recv), 0);
     }
 
