@@ -7,6 +7,7 @@ int main()
     uint8_t recv[3];
     boost::interprocess::message_queue mq(boost::interprocess::open_or_create,
                                           "remote", 2, 3);
+    // 首包校验
     while(true)
     {
         remote.receive(recv, 1);

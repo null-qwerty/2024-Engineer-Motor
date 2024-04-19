@@ -40,7 +40,7 @@ int main()
     PHOENIX::cvlib::graphTable table;
 
     cv::RNG rng(time(NULL));
-
+    // 通过电机数量创建对应的观测值和目标值曲线
     for (auto v : jo.at("motor_list").as_array()) {
         int id = v.at("id").as_int64();
         observedPoints[id] = std::make_shared<std::deque<float>>();

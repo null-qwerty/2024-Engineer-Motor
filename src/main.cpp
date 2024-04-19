@@ -25,6 +25,8 @@ typedef struct {
 int main()
 {
     // 读取配置文件
+    // TODO: 读取配置文件的代码可以封装成一个函数
+
     double kp, ki, kd, amplitude, signslOffset;
     std::string signalType;
 
@@ -70,7 +72,7 @@ int main()
         SpeedLoop.insert(std::pair<int, pidController>(
             id, PID(kp, ki, kd, 20 * queryGearRatio(motorType),
                     -20 * queryGearRatio(motorType))));
-        SpeedLoop[id].setLimit(max_q, min_q);
+        SpeedLoop[id].setLimit(max_q, min_q); // 设置电机物理限位
         motor.addMotor(id, motorType);
 
         SpeedLoop[id].target = motor.dataList[id].q / queryGearRatio(motorType);
@@ -85,7 +87,8 @@ int main()
     double x = 0.;
 
     while (true) {
-        if (signalType == "sin") {
+        // 设置信号
+        if (signalType == "sin") { // 模拟正弦信号
             for (auto &v : SpeedLoop) {
                 v.second.target =
                     signslOffset + amplitude * sin(x + M_PI / 2 * v.first);
@@ -93,29 +96,35 @@ int main()
             x += 0.01;
             if (x >= 2 * M_PI)
                 x = x - 2 * M_PI;
-        } else if (signalType == "step") {
+        } else if (signalType == "step") { // 模拟阶跃信号
             for (auto &v : SpeedLoop) {
                 v.second.target = signslOffset + amplitude + v.first;
             }
-        } else if (signalType == "remote") {
+        } else if (signalType == "remote") { //* 遥控器控制，实际上场使用
             int8_t recv[3] = { 0, 0, 0 };
             boost::interprocess::message_queue::size_type recvSize;
             unsigned int priority;
 
             remotemq.try_receive(recv, sizeof(recv), recvSize, priority);
+            // 由于下位机发送的数据只有 -1, 0, 1 表示反转，停止，正转
+            // 这里使用固定的增量，即匀速运动
+            // TODO: 变为匀加速运动？
             for (auto &v : SpeedLoop) {
                 v.second.target = v.second.target_limit(
                     v.second.target + (int)recv[v.first] * 0.005);
+                // 判定堵转，A1 最大输出力矩约 34 Nm
+                // TODO: 堵转阈值数值计算
                 v.second.target = motor.getData(v.first).tau > 20 ?
                                       motor.getDataDivGearRatio(v.first).q :
                                       v.second.target;
             }
-        } else if (signalType == "none") {
+        } else if (signalType == "none") { // 不设置信号，用于调试，找物理限位
             for (auto &v : SpeedLoop) {
                 v.second.target = motor.getDataDivGearRatio(v.first).q;
             }
         }
-
+        // 发送用于绘图的数据
+        // TODO: 配置文件中添加开关
         for (auto &v : SpeedLoop) {
             graph_msg msg;
             msg.id = v.first;
@@ -124,10 +133,11 @@ int main()
             msg.data = motor.getDataDivGearRatio(v.first).q;
             observemq.try_send(&msg, sizeof(graph_msg), 0);
         }
-
-        for(auto &v : SpeedLoop){
+        // 发送电机控制指令，接收电机数据
+        for (auto &v : SpeedLoop) {
             motor.getCmd(v.first).id = v.first;
-            motor.getCmd(v.first).q = v.second.target * queryGearRatio(motor.motorList[v.first]);
+            motor.getCmd(v.first).q =
+                v.second.target * queryGearRatio(motor.motorList[v.first]);
             motor.getCmd(v.first).kp = 0.05;
             motor.getCmd(v.first).kd = 1.2;
             motor.getCmd(v.first).dq = v.second.Update(
@@ -136,7 +146,7 @@ int main()
             motor.getData(v.first).q += motor.getCmd(v.first).dq * 0.01;
             motor.sendRecv(v.first);
         }
-
+        // 1000 Hz
         usleep(1000);
     }
 
