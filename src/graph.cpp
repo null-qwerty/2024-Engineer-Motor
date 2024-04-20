@@ -61,10 +61,14 @@ int main()
     while (true) {
         graph_msg msg[5];
         try {
-            observemq.try_receive(&msg, sizeof(graph_msg), recvSize, priority);
-            observedPoints[msg[0].id]->push_back(msg[0].data);
-            targetmq.try_receive(&msg, sizeof(graph_msg), recvSize, priority);
-            targetPoints[msg[0].id]->push_back(msg[0].data);
+            for (auto v : jo.at("motor_list").as_array()) {
+                targetmq.try_receive(&msg, sizeof(graph_msg), recvSize,
+                                     priority);
+                targetPoints[msg[0].id]->push_back(msg[0].data);
+                observemq.try_receive(&msg, sizeof(graph_msg), recvSize,
+                                      priority);
+                observedPoints[msg[0].id]->push_back(msg[0].data);
+            }
         } catch (boost::exception &e) {
             observemq.remove("observe");
             targetmq.remove("target");
