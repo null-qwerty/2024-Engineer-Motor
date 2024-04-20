@@ -121,8 +121,8 @@ int main()
                 v.second.target * queryGearRatio(motor.motorList[v.first]),
                 motor.getData(v.first).q);
             
-            motor.getData(v.first).q += motor.getCmd(v.first).dq * 0.01;
-            // motor.sendRecv(v.first);
+            // motor.getData(v.first).q += motor.getCmd(v.first).dq * 0.01;
+            motor.sendRecv(v.first);
         }
         // 1000 Hz
         usleep(1000);
