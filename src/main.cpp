@@ -12,6 +12,7 @@
 // User
 #include "pid/pid.hpp"
 #include "motor/motor.hpp"
+#include "signalGenerater/signalGenerater.hpp"
 
 using namespace boost::interprocess;
 
@@ -27,8 +28,7 @@ int main()
     // 读取配置文件
     // TODO: 读取配置文件的代码可以封装成一个函数
 
-    double kp, ki, kd, amplitude, signslOffset;
-    std::string signalType;
+    double kp, ki, kd;
 
     boost::filesystem::path p("../config.json");
     std::ifstream ifs(p);
@@ -40,9 +40,6 @@ int main()
     kp = jo["pidPram"].as_object().at("kp").as_double();
     ki = jo["pidPram"].as_object().at("ki").as_double();
     kd = jo["pidPram"].as_object().at("kd").as_double();
-    signalType = jo["signal"].as_object().at("type").as_string();
-    amplitude = jo["signal"].as_object().at("amplitude").as_double();
-    signslOffset = jo["signal"].as_object().at("offset").as_double();
 
     std::map<int, pidController> SpeedLoop;
     UniTreeMotor motor("/dev/unitree");
@@ -56,6 +53,9 @@ int main()
 
         id = v.as_object().at("id").as_int64();
         type = v.as_object().at("type").as_string();
+        max_q = v.as_object().at("max_q").as_double();
+        min_q = v.as_object().at("min_q").as_double();
+        
         if (type == "A1")
             motorType = MotorType::A1;
         else if (type == "B1")
@@ -66,8 +66,6 @@ int main()
             std::cerr << "Motor type error! type:" << type << std::endl;
             exit(-1);
         }
-        max_q = v.as_object().at("max_q").as_double();
-        min_q = v.as_object().at("min_q").as_double();
 
         SpeedLoop.insert(std::pair<int, pidController>(
             id, PID(kp, ki, kd, 20 * queryGearRatio(motorType),
@@ -84,44 +82,23 @@ int main()
 
     message_queue remotemq(open_or_create, "remote", 2, 3);
 
-    double x = 0.;
+    signalGenerater signal("../config.json");
 
     while (true) {
-        // 设置信号
-        if (signalType == "sin") { // 模拟正弦信号
-            for (auto &v : SpeedLoop) {
-                v.second.target =
-                    signslOffset + amplitude * sin(x + M_PI / 2 * v.first);
-            }
-            x += 0.01;
-            if (x >= 2 * M_PI)
-                x = x - 2 * M_PI;
-        } else if (signalType == "step") { // 模拟阶跃信号
-            for (auto &v : SpeedLoop) {
-                v.second.target = signslOffset + amplitude + v.first;
-            }
-        } else if (signalType == "remote") { //* 遥控器控制，实际上场使用
-            int8_t recv[3] = { 0, 0, 0 };
-            boost::interprocess::message_queue::size_type recvSize;
-            unsigned int priority;
+        int8_t recv[3] = { 0, 0, 0 };
+        boost::interprocess::message_queue::size_type recvSize;
+        unsigned int priority;
 
-            remotemq.try_receive(recv, sizeof(recv), recvSize, priority);
-            // 由于下位机发送的数据只有 -1, 0, 1 表示反转，停止，正转
-            // 这里使用固定的增量，即匀速运动
-            // TODO: 变为匀加速运动？
-            for (auto &v : SpeedLoop) {
-                v.second.target = v.second.target_limit(
-                    v.second.target + (int)recv[v.first] * 0.005);
-                // 判定堵转，A1 最大输出力矩约 34 Nm
-                // TODO: 堵转阈值数值计算
-                v.second.target = motor.getData(v.first).tau > 20 ?
-                                      motor.getDataDivGearRatio(v.first).q :
-                                      v.second.target;
-            }
-        } else if (signalType == "none") { // 不设置信号，用于调试，找物理限位
-            for (auto &v : SpeedLoop) {
-                v.second.target = motor.getDataDivGearRatio(v.first).q;
-            }
+        remotemq.try_receive(recv, sizeof(recv), recvSize, priority);
+        // 设置信号
+        for (auto &v : SpeedLoop) {
+            v.second.target = v.second.target_limit(
+                signal.generateSignal(v.second.target, recv[v.first]));
+            // 判定堵转，A1 最大输出力矩约 34 Nm
+            // TODO: 堵转阈值数值计算
+            v.second.target = motor.getData(v.first).tau > 20 ?
+                                  motor.getDataDivGearRatio(v.first).q :
+                                  v.second.target;
         }
         // 发送用于绘图的数据
         // TODO: 配置文件中添加开关
@@ -143,8 +120,9 @@ int main()
             motor.getCmd(v.first).dq = v.second.Update(
                 v.second.target * queryGearRatio(motor.motorList[v.first]),
                 motor.getData(v.first).q);
+            
             motor.getData(v.first).q += motor.getCmd(v.first).dq * 0.01;
-            motor.sendRecv(v.first);
+            // motor.sendRecv(v.first);
         }
         // 1000 Hz
         usleep(1000);

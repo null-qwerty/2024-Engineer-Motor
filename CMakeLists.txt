@@ -21,6 +21,7 @@ add_executable(HelloWorld
     src/main.cpp
     src/pid/pid.cpp
     src/motor/motor.cpp
+    src/signalGenerater/signalGenerater.cpp
 )
 
 add_executable(remote src/remote.cpp)
