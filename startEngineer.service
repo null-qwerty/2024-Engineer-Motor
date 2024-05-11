@@ -1,0 +1,11 @@
+[Unit]
+Description=Starts the application
+After=network.target
+
+[Service]
+ExecStart=~/rm/code/2024-Engineer-Motor/start.sh
+Restart=always
+User=rm
+
+[Install]
+WantedBy=multi-user.target
