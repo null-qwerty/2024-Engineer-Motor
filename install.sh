@@ -2,6 +2,7 @@
 
 # copy service file to /etc/systemd/system
 sudo cp ./startEngineer.service /etc/systemd/system
+sudo systemctl enable startEngineer.service
 
 # copy .rule file to /etc/udev/rules.d
 sudo cp usb.rules /etc/udev/rules.d

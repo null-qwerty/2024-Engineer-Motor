@@ -3,7 +3,8 @@ Description=Starts the application
 After=network.target
 
 [Service]
-ExecStart=~/rm/code/2024-Engineer-Motor/start.sh
+WorkingDirectory=~/rm/code/2024-Engineer-Motor
+ExecStart=./start.sh
 Restart=always
 User=rm
 
