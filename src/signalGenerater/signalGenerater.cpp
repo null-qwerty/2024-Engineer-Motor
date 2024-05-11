@@ -12,6 +12,9 @@ signalGenerater::signalGenerater(std::string configPath)
     amplitude = jo["signal"].as_object().at("amplitude").as_double();
     signslOffset = jo["signal"].as_object().at("offset").as_double();
     signalType = jo["signal"].as_object().at("type").as_string();
+    signal_limit = jo["signal"].as_object().at("remote_signal_limit").as_double();
+    signal_limit /= 660.; // 除以遥感的最大值
+    if_reverse = jo["signal"].as_object().at("remote_direction_reversal").as_bool();
 }
 
 double signalGenerater::generateSignal(double crr, int sign)
@@ -25,12 +28,16 @@ double signalGenerater::generateSignal(double crr, int sign)
     } else if (signalType == "step") { // 模拟阶跃信号
         res = signslOffset + amplitude;
     } else if (signalType == "remote") { //* 遥控器控制，实际上场使用
-        // 由于下位机发送的数据只有 -1, 0, 1 表示反转，停止，正转
         // 这里使用固定的增量，即匀速运动
         // TODO: 变为匀加速运动？
-        res = crr + sign * 0.005;
-    } else if (signalType == "none") { // 不设置信号，用于调试，找物理限位
+        sign = if_reverse ? -sign : sign;
+        res = crr + signal_limit * sign * 0.001;
+    } else if (signalType == "none" ||   // 不设置信号，用于调试，找物理限位
+               signalType == "stayed") { // 或者保持不动，用于调 pid
         return crr;
+    } else {
+        std::cerr << "Unknown signal type: " << signalType << std::endl;
+        exit(1);
     }
     return res;
 }

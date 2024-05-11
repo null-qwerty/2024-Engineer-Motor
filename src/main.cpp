@@ -29,6 +29,7 @@ int main()
     // TODO: 读取配置文件的代码可以封装成一个函数
 
     double kp, ki, kd;
+    bool if_graph;
 
     boost::filesystem::path p("../config.json");
     std::ifstream ifs(p);
@@ -40,6 +41,7 @@ int main()
     kp = jo["pidPram"].as_object().at("kp").as_double();
     ki = jo["pidPram"].as_object().at("ki").as_double();
     kd = jo["pidPram"].as_object().at("kd").as_double();
+    if_graph = jo["graph"].as_bool();
 
     std::map<int, pidController> SpeedLoop;
     UniTreeMotor motor("/dev/unitree");
@@ -83,46 +85,56 @@ int main()
     message_queue remotemq(open_or_create, "remote", 2, 3);
 
     signalGenerater signal("../config.json");
+    
+    int8_t recv[3] = { 0, 0, 0 };
+    boost::interprocess::message_queue::size_type recvSize;
+    unsigned int priority;
 
     while (true) {
-        int8_t recv[3] = { 0, 0, 0 };
-        boost::interprocess::message_queue::size_type recvSize;
-        unsigned int priority;
-
         remotemq.try_receive(recv, sizeof(recv), recvSize, priority);
         // 设置信号
         for (auto &v : SpeedLoop) {
+            if (motor.motorState[v.first] == MotorState::CONNECTING) {
+                v.second.target = motor.getDataDivGearRatio(v.first).q;
+                v.second.init_pos = v.second.target;
+                v.second.reset();
+                motor.motorState[v.first] = MotorState::CONNECTED;
+            }
             v.second.target = v.second.target_limit(
-                signal.generateSignal(v.second.target, recv[v.first]));
+                signal.generateSignal(v.second.target, *(short *)(recv + 1)));
             // 判定堵转，A1 最大输出力矩约 34 Nm
             // TODO: 堵转阈值数值计算
-            v.second.target = motor.getData(v.first).tau > 20 ?
+            v.second.target = motor.getData(v.first).tau > 10 ||
+                                      signal.getSignalType() == "none" ?
                                   motor.getDataDivGearRatio(v.first).q :
                                   v.second.target;
         }
         // 发送用于绘图的数据
-        // TODO: 配置文件中添加开关
-        for (auto &v : SpeedLoop) {
-            graph_msg msg;
-            msg.id = v.first;
-            msg.data = v.second.target;
-            targetmq.try_send(&msg, sizeof(graph_msg), 0);
-            msg.data = motor.getDataDivGearRatio(v.first).q;
-            observemq.try_send(&msg, sizeof(graph_msg), 0);
+        if (if_graph) {
+            for (auto &v : SpeedLoop) {
+                graph_msg msg;
+                msg.id = v.first;
+                msg.data = v.second.target;
+                targetmq.try_send(&msg, sizeof(graph_msg), 0);
+                msg.data = motor.getDataDivGearRatio(v.first).q;
+                observemq.try_send(&msg, sizeof(graph_msg), 0);
+            }
         }
         // 发送电机控制指令，接收电机数据
         for (auto &v : SpeedLoop) {
             motor.getCmd(v.first).id = v.first;
             motor.getCmd(v.first).q =
                 v.second.target * queryGearRatio(motor.motorList[v.first]);
-            motor.getCmd(v.first).kp = 0.05;
-            motor.getCmd(v.first).kd = 1.2;
+            motor.getCmd(v.first).kp = 0.5;
+            motor.getCmd(v.first).kd = 0.2;
             motor.getCmd(v.first).dq = v.second.Update(
                 v.second.target * queryGearRatio(motor.motorList[v.first]),
                 motor.getData(v.first).q);
             
             // motor.getData(v.first).q += motor.getCmd(v.first).dq * 0.01;
             motor.sendRecv(v.first);
+            std::cout << "state: " << motor.motorState[v.first] << std::endl;
+            // std::cout << motor.dataList[v.first].q << std::endl;
         }
         // 1000 Hz
         usleep(1000);

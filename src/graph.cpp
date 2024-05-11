@@ -37,7 +37,7 @@ int main()
     std::map<int, Points> observedPoints;
     std::map<int, Points> targetPoints;
 
-    PHOENIX::cvlib::graphTable table;
+    PHOENIX::cvlib::graphTable table(1000.f,1000.f,10.f,200.f);
 
     cv::RNG rng(time(NULL));
     // 通过电机数量创建对应的观测值和目标值曲线

@@ -26,15 +26,6 @@ PID::PID(double Kp, double Ki, double Kd, double Umax, double Umin, double Kr,
     last_Iae = 0.0;
     Err = 0.0;
     Out = 0.0;
-    x[0] = 0.0;
-    x[1] = 0.0;
-    x[2] = 0.0;
-    w[0] = Kp;
-    w[1] = Kp * Ki;
-    w[2] = Kp * Kd;
-    u_ = 0.0;
-    last_u_ = 0;
-    pre_u_ = 0;
 }
 
 double PID::Update(double Ref, double Fbk)

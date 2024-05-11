@@ -44,6 +44,22 @@ public:
     double getKi() { return Ki; }
     double getKd() { return Kd; }
 
+    void reset()
+    {
+        pOut = 0.0;
+        iOut = 0.0;
+        dOut = 0.0;
+        dErr = 0.0;
+        preSatOut = 0.0;
+        last_iOut = 0.0;
+        last_dOut = 0.0;
+        last_dErr = 0.0;
+        sat_record = 0.0;
+        last_Iae = 0.0;
+        Err = 0.0;
+        Out = 0.0;
+    }
+
 private:
     // PID param
     double Kr = 1.;
@@ -72,13 +88,6 @@ private:
     double last_Err;
     double Out;
     double Iae;
-
-    double x[3];
-    double w[3];
-    double w_sum;
-    double u_;
-    double last_u_;
-    double pre_u_;
 };
 
 struct pidController : public PID {

@@ -7,11 +7,11 @@ int main()
     uint8_t recv[3];
     boost::interprocess::message_queue mq(boost::interprocess::open_or_create,
                                           "remote", 2, 3);
-    // 首包校验
-    while(true)
-    {
+// 首包校验
+FIRST_CHECK:
+    while (true) {
         remote.receive(recv, 1);
-        if(recv[0] == 0xa1){
+        if (recv[0] == 0xa1) {
             remote.receive(recv + 1, 2);
             break;
         }
@@ -21,8 +21,11 @@ int main()
         remote.receive(recv, sizeof(recv));
         std::cout << std::hex << (int)recv[0] << " " << (int)recv[1] << " "
                   << (int)recv[2] << std::endl;
-        recv[0] = recv[1];
-        recv[1] = 0x00;
+        std::cout << std::dec << "data:" << *(short *)(recv + 1) << std::endl;
+        // recv[0] = recv[1];
+        // recv[1] = 0x00;
+        if (recv[0] != 0xa1)
+            goto FIRST_CHECK;
         mq.try_send(recv, sizeof(recv), 0);
     }
 

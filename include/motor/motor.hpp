@@ -5,6 +5,8 @@
 
 #include <map>
 
+enum MotorState { MISSING = 0, CONNECTING = 1, CONNECTED = 2 };
+
 class UniTreeMotor {
 public:
     /**
@@ -35,6 +37,11 @@ public:
      */
     bool sendRecv(const int &id = 0)
     {
+        if (getData(id).merror) {
+            motorState[getCmd(id).id] = MotorState::MISSING;
+            initailizeMotor(getCmd(id).id);
+            return false;
+        }
         return serial.sendRecv(&getCmd(id), &getData(id));
     }
     /**
@@ -58,7 +65,7 @@ public:
      * @param id 电机 id
      * @return MotorCmd& 电机控制数据 
      */
-    MotorCmd& getCmd(const int &id)
+    MotorCmd &getCmd(const int &id)
     {
         return cmdList[id];
     }
@@ -68,7 +75,7 @@ public:
      * @param id 电机 id
      * @return MotorData& 电机反馈数据 
      */
-    MotorData& getData(const int &id)
+    MotorData &getData(const int &id)
     {
         return dataList[id];
     }
@@ -78,17 +85,20 @@ public:
      * @param id 电机 id
      * @return MotorData 电机反馈数据，q 和 dq 除以减速比 
      */
-    MotorData getDataDivGearRatio(const int& id)
+    MotorData getDataDivGearRatio(const int &id)
     {
         MotorData temp = dataList[id];
         temp.q /= queryGearRatio(motorList[id]);
         temp.dq /= queryGearRatio(motorList[id]);
         return temp;
     }
-    
-    std::map<int,MotorCmd> cmdList; ///< 电机命令
-    std::map<int,MotorData> dataList; ///< 电机数据
+
+    void initailizeMotor(int id);
+
+    std::map<int, MotorCmd> cmdList; ///< 电机命令
+    std::map<int, MotorData> dataList; ///< 电机数据
     std::map<int, MotorType> motorList; ///< 电机列表
+    std::map<int, int> motorState; ///< 电机状态
 
 private:
     SerialPort serial; ///< 串口
